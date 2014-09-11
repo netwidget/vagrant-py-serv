@@ -1,0 +1,1 @@
+{"virtualbox":{"/var/www/kidwork":{"guestpath":"/var/www/kidwork","hostpath":"/Users/james/sitedev/kidwork","disabled":false},"/vagrant":{"guestpath":"/vagrant","hostpath":"/Users/james/servers/kidwork","disabled":false}}}
