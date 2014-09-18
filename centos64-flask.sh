@@ -144,7 +144,7 @@ else
 fi
 
 # Installing nginx.
-nginx_install=rpm -qa | nginx
+nginx_install=$(rpm -qa | nginx)
 if [ -z $nginx_install ]; then
 
     rpm -Uvh http://dl.fedoraproject.org/pub/epel/$sys_ver_maj/x86_64/epel-release-$sys_ver_maj-$sys_ver_min.noarch.rpm
@@ -155,67 +155,76 @@ if [ -z $nginx_install ]; then
     mv /etc/nginx/nginx.conf /etc/nginx/nginx.bak
 
     # Configure nginx
-    echo 'worker_processes 1;
+echo 'worker_processes 1;
 
-    events {
+events {
 
-        worker_connections 1024;
+    worker_connections 1024;
+
+}
+
+http {
+
+    sendfile on;
+
+    gzip                on;
+    gzip_http_version   1.0;
+    gzip_proxied        any;
+    gzip_min_length     500;
+    gzip_disable        "MSIE [1-6]\.";
+    gzip_types          text/plain text/xml text/css
+                        text/comma-separated-values
+                        text/javascript
+                        application/x-javascript
+                        application/atom+xml;
+
+    # Configuration containing list of application servers
+    upstream uwsgicluster {
+
+        server 127.0.0.1:8088;
+        # server 127.0.0.1:8089;
+        # ..
+        # .
 
     }
 
-    http {
+    # Configuration for Nginx
+    server {
 
-        sendfile on;
+        # Running port
+        listen 80;
+        
+        # Settings to by-pass for static files
+        location ^~ /static/ {
+        
+            # Example:
+            # root /full/path/to/appliaction/static/file/dir;
+            root /app/static/;
+            
+        }
+       
+        # Serve a static file (ex. favico) outside static dir.
+        location = /favico.ico {
 
-        gzip                on;
-        gzip_http_version   1.0;
-        gzip_proxied        any;
-        gzip_min_length     500;
-        gzip_disable        "MSIE [1-6]\.";
-        gzip_types          text/plain text/xml text/css
-                            text/comma-separated-values
-                            text/javascript
-                            application/atom+xml;
-
-        # Configuration containing list of application servers
-        upstream uwsgicluster {
-
-            server 127.0.0.1:8088;
-            # server 127.0.0.1:8089;
-            # ..
-            # .
+            root /app/favico.ico;
 
         }
-
-        # Configuration for Nginx
-        server {
-
-            # Running port
-            listen 80;
-            
-            # Settings to by-pass for static files
-            loaction ^~ /static/ {
-            
-                # Example:
-                # root /full/path/to/appliaction/static/file/dir;
-                root /app/static/;
-                
-            }
-            
-            # Proxying connections to application servers
-            location / {
-            
-                include         uwsgi_params;
-                uwsgi_pass      uwsgicluster;
-            
-                proxy_redirect  off;
-                proxy_set_header    X-Real-IP $remote_addr;
-                proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header    X-Forwarded-Host $server_name;
-            
-            }
+ 
+        # Proxying connections to application servers
+        location / {
+        
+            include         uwsgi_params;
+            uwsgi_pass      uwsgicluster;
+        
+            proxy_redirect      off;
+            proxy_set_header    Host $host;
+            proxy_set_header    X-Real-IP $remote_addr;
+            proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header    X-Forwarded-Host $server_name;
+        
         }
-    }' > /etc/nginx/nginx.conf
+    }
+}' > /etc/nginx/nginx.conf
 
     service nginx restart
     echo "Nginx installed."
