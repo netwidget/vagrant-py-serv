@@ -59,14 +59,14 @@ address="127.0.0.1"
 #
 yum update -y
 yum groupinstall -y development
-yum install -y vim zlib-devel openssl-devel sqlite-devel bzip2-devel
+yum install -y vim zlib-devel openssl-devel sqlite-devel bzip2-devel mysql mysql-server mysql-devel
 yum install xz-libs
 
 # Turn on networking
 # Set networking to start at boot.
 #
 if grep -Fxq "ONBOOT=yes" /etc/sysconfig/network-scripts/ifcfg-eth0
-    then 
+    then
         echo "Network connection already configured."
     else
         sed -i 's/^\(ONBOOT\s*=\s*\).*$/\1yes/' /etc/sysconfig/network-scripts/ifcfg-eth0
@@ -90,7 +90,7 @@ if [ ! -f /Python-$py_ver_maj.$py_ver_min.$py_ver_inc ]; then
     # Start the configuration (setting the installation directory)
     # By default files are installed in /usr/local.
     # You can modify the --prefix to modify it (e.g. for $HOME).
-    ./configure --prefix=/usr/local  
+    ./configure --prefix=/usr/local
 
     # Compile the source
     # This procedure can take awhile (~a few minutes)
@@ -134,8 +134,15 @@ if [ ! -f /Python-$py_ver_maj.$py_ver_min.$py_ver_inc ]; then
 
     # Setup vritualenv for project.
     virtualenv env
+    source bin/activate
     /$base_folder/$project_folder/env/bin/pip install uwsgi
     /$base_folder/$project_folder/env/bin/pip install flask
+    /$base_folder/$project_folder/env/bin/pip install MySQL-python
+
+    # Config app.run calls for WSGI.py
+    echo 'from app import app
+    if __name__ == "__main__":
+        app.run()' > /$base_folder/$project_folder/WSGI.py
 
     echo "Project files, evironment and WSGI setup."
 else
@@ -153,6 +160,9 @@ if [ -z $nginx_install ]; then
 
     # Move default nginx.conf to .bak
     mv /etc/nginx/nginx.conf /etc/nginx/nginx.bak
+
+    # Premissions to logs.
+    chmod -R 755 /var/log/ngnix
 
     # Configure nginx
 echo 'worker_processes 1;
@@ -193,35 +203,35 @@ http {
 
         # Running port
         listen 80;
-        
+
         # Settings to by-pass for static files
         location ^~ /static/ {
-        
+
             # Example:
             # root /full/path/to/appliaction/static/file/dir;
             root /app/static/;
-            
+
         }
-       
+
         # Serve a static file (ex. favico) outside static dir.
         location = /favico.ico {
 
             root /app/favico.ico;
 
         }
- 
+
         # Proxying connections to application servers
         location / {
-        
+
             include         uwsgi_params;
             uwsgi_pass      uwsgicluster;
-        
+
             proxy_redirect      off;
             proxy_set_header    Host $host;
             proxy_set_header    X-Real-IP $remote_addr;
             proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header    X-Forwarded-Host $server_name;
-        
+
         }
     }
 }' > /etc/nginx/nginx.conf
@@ -232,5 +242,16 @@ else
     echo " Nginx already installed and configured."
 
 fi
+
+# Add source /bin/activate to .bash_profile
+#
+echo "source /$base_folder/$project_folder/env/bin/activate" >> /home/vagrant/.bash_profile
+
+# Re-initialize the .bash_profile
+source /home/vagrant/.bash_profile
+
+# Starting WSGI web server
+/$base_folder/$project_folder/env/bin/uwsgi --socket 127.0.0:8088 -w
+/$base_folder/$project_folder/WSGI:app
 
 echo "SYSTEM COMPLETE!"
